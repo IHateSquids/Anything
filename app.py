@@ -1,19 +1,27 @@
 from flask import Flask, render_template, redirect, url_for, request, flash
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from flask_login import (LoginManager,
+                         UserMixin, login_user,
+                         login_required, logout_user,
+                         current_user)
 
-# Initialize Flask app
 app = Flask(__name__)
-app.secret_key = 'your_secret_key_here'  # Change this to a secure key in production
+app.secret_key = 'your_secret_key_here'.encode('utf-8')
 
 # Configure SQLite database
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Initialize SQLAlchemy and LoginManager
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+
+
 
 # User model
 class User(UserMixin, db.Model):
@@ -22,10 +30,6 @@ class User(UserMixin, db.Model):
    password = db.Column(db.String(120), nullable=False)
    email = db.Column(db.String(120), unique=True, nullable=False)
 
-# Load user for Flask-Login
-@login_manager.user_loader
-def load_user(user_id):
-   return User.query.get(int(user_id))
 
 # Routes
 @app.route('/')
@@ -36,7 +40,7 @@ def home():
 def register():
    if request.method == 'POST':
        username = request.form['username']
-       email = request.form['email']  # Capture the email from the form
+       email = request.form['email']
        password = request.form['password']
 
        # Check if username or email already exists
@@ -62,19 +66,19 @@ def register():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-   if request.method == 'POST':
-       username = request.form['username']
-       password = request.form['password']
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
 
-       user = User.query.filter_by(username=username).first()
-       if user and user.password == password:
-           login_user(user)
-           flash('Logged in successfully!', 'success')
-           return redirect(url_for('users'))
-       else:
-           flash('Invalid username or password.', 'error')
-
-   return render_template('login.html')
+        user = User.query.filter_by(username=username).first()
+        if user and user.password == password:
+            login_user(user)
+            flash('Login successful!', 'success')
+            return redirect(url_for('home'))
+        else:
+            flash('Invalid username or password. Please try again.', 'error')
+            return redirect(url_for('login'))
+    return render_template('login.html')
 
 @app.route('/users')
 @login_required
@@ -82,15 +86,15 @@ def users():
    users = User.query.all()
    return render_template('users.html', users=users)
 
-@app.route('/logout')
-@login_required
+@app.route('/logout', methods=['GET', 'POST'])
 def logout():
-   logout_user()
-   flash('Logged out successfully!', 'success')
-   return redirect(url_for('home'))
+    logout_user()
+    flash('You have been logged out.', 'info')
+    return redirect(url_for('home'))
 
 # Run the application
 if __name__ == '__main__':
    with app.app_context():
-       db.create_all()  # Create database tables
-   app.run()
+       db.create_all()
+   app.run(debug=True)
+
